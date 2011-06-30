@@ -772,18 +772,14 @@ class DataMapper implements IteratorAggregate {
 		$class = strtolower($class);
 
 		// Prepare path
+		$paths = array();
 		if (method_exists($CI->load, 'get_package_paths'))
 		{
 			// use CI 2.0 loader's model paths
 			$paths = $CI->load->get_package_paths(false);
 		}
-		else
-		{
-			// search only the applications models folder
-			$paths[] = APPPATH;
-		}
 
-		foreach (array_merge($paths, self::$model_paths) as $path)
+		foreach (array_merge(array(APPPATH),$paths, self::$model_paths) as $path)
 		{
 			// Prepare file
 			$file = $path . 'models/' . $class . EXT;
