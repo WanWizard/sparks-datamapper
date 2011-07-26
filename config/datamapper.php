@@ -29,7 +29,7 @@ $config['db_params'] = '';
 // Uncomment to enable the production cache
 // $config['production_cache'] = APPPATH.'cache';
 
-$config['extensions_path'] = '../sparks/Datamapper-ORM/1.8.1-2/extensions';
+$config['extensions_path'] = '../sparks/Datamapper-ORM/1.8.1/extensions';
 $config['extensions'] = array();
 
 /* End of file datamapper.php */
