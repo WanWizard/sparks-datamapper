@@ -92,6 +92,29 @@ class DMZ_Array {
 	}
 
 	/**
+	 * Convert a single field from the entire $object->all array result set into an a single array
+	 * with the objects' id field as key
+	 *
+	 * @param	DataMapper $object The DataMapper Object to convert
+	 * @param	string $field to include
+	 * @return	array An array of associative arrays.
+	 */
+	function all_to_single_array($object, $field = '')
+	{
+		// loop through each object in the $all array, convert them to
+		// an array, and add them to a new array.
+		$result = array();
+		if ( ! empty($field) )
+		{
+			foreach($object as $o)
+			{
+				isset($o->{$field}) and $result[$o->id] = $o->{$field};
+			}
+		}
+		return $result;
+	}
+
+	/**
 	 * Convert an associative array back into a DataMapper model.
 	 *
 	 * If $fields is provided, missing fields are assumed to be empty checkboxes.

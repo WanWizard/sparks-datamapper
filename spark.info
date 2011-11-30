@@ -7,11 +7,11 @@ name: Datamapper-ORM
 
 # This is the current version of this spark. All sparks should be in
 #  x.x.x format. Validation will fail otherwise.
-version: 1.8.1
+version: 1.8.2
 
 # This is the version of CodeIgniter this spark is compatible up to. It should
 #  be in x.x.x format
-compatibility: 2.0.2
+compatibility: 3.0.0
 
 # There are no dependencies now, but when there are, uncomment below.
 #dependencies:
