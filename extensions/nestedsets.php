@@ -1039,7 +1039,7 @@ class DMZ_Nestedsets {
 	public function dump_dropdown($object, $field = FALSE, $skip_root = TRUE)
 	{
 		// check if a specific field has been requested
-		if ( empty($field) OR ! isset($this->fields[$field]) )
+		if ( empty($field) OR ! in_array($field, $object->fields) )
 		{
 			// no field given, check if a generic name is defined
 			if ( ! empty($this->_nodename) )

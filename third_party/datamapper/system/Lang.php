@@ -13,6 +13,9 @@
  * @version 	2.0.0
  */
 
+// add support for HMVC
+class_exists('MX_Lang')  and $name = 'MX_Lang';
+
 $dmclass = <<<CODE
 class DM_Lang extends $name
 {

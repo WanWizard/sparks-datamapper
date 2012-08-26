@@ -12,6 +12,9 @@
  * @version     2.0.0-dev
  */
 
+// make sure we have a DATAMAPPERPATH
+defined('DATAMAPPERPATH') OR define('DATAMAPPERPATH', APPPATH);
+
 /**
 * Class registry
 *
@@ -68,7 +71,7 @@ if ( ! function_exists('load_class'))
 		}
 
 		// Do we have a DataMapper extension for this class?
-		if (file_exists($file = APPPATH.'third_party/datamapper/system/'.$class.'.php'))
+		if (file_exists($file = DATAMAPPERPATH.'third_party/datamapper/system/'.$class.'.php'))
 		{
 			require_once($file);
 		}
