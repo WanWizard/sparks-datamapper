@@ -12,7 +12,7 @@
  * @author  	Phil DeJarnett (up to v1.7.1)
  * @author  	Simon Stenhouse (up to v1.6.0)
  * @link		http://datamapper.wanwizard.eu/
- * @version 	1.8.2.1
+ * @version 	1.8.2
  */
 
 /**
@@ -23,7 +23,7 @@ define('DMZ_CLASSNAMES_KEY', '_dmz_classnames');
 /**
  * DMZ version
  */
-define('DMZ_VERSION', '1.8.2.1');
+define('DMZ_VERSION', '1.8.3-dev');
 
 /**
  * Data Mapper Class
@@ -594,6 +594,23 @@ class DataMapper implements IteratorAggregate {
 				$this->_initiate_local_extensions($common_key);
 			}
 
+			// define any custom module path present so we can find the model
+			foreach(array('has_one', 'has_many') as $arr)
+			{
+				foreach ($this->{$arr} as $related_field => $rel_props)
+				{
+					// process the model custom paths if present
+					if( isset($rel_props['model_path']))
+					{
+						$rel_props['model_path'] = rtrim($rel_props['model_path'], '/') . '/';
+						if ( is_dir($rel_props['model_path'].'models') && ! in_array($rel_props['model_path'], self::$model_paths))
+						{
+							self::$model_paths[] = $rel_props['model_path'];
+						}
+					}
+				}
+			}
+
 			// Finally, localize the labels here (because they shouldn't be cached
 			// This also sets any missing labels.
 			$validation =& DataMapper::$common[$common_key]['validation'];
@@ -909,7 +926,7 @@ class DataMapper implements IteratorAggregate {
 	 * Loads the extensions that are local to this model.
 	 * @param	string $common_key Shared key to save extenions to.
 	 */
-	private function _initiate_local_extensions($common_key)
+	protected function _initiate_local_extensions($common_key)
 	{
 		if(!empty($this->extensions))
 		{
@@ -1050,13 +1067,12 @@ class DataMapper implements IteratorAggregate {
 		{
 			if ( ! isset($this->form_validation) )
 			{
-				if( ! isset($CI->form_validation))
-				{
-					$CI->load->library('form_validation');
-					$this->lang->load('form_validation');
-				}
+				isset($CI->form_validation) OR $CI->load->library('form_validation');
+
 				$this->form_validation =& $CI->form_validation;
+				$this->lang->load('form_validation');
 			}
+
 			return $this->form_validation;
 		}
 
@@ -1105,7 +1121,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param string $related Related Name
 	 * @return DataMapper|NULL
 	 */
-	private function &_get_without_auto_populating($related)
+	protected function &_get_without_auto_populating($related)
 	{
 		$b_many = $this->auto_populate_has_many;
 		$b_one = $this->auto_populate_has_one;
@@ -1197,7 +1213,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	object $which One of 'both', 'local', or 'global'
 	 * @return	bool TRUE if the method can be called.
 	 */
-	private function _extension_method_exists($method, $which = 'both') {
+	protected function _extension_method_exists($method, $which = 'both') {
 		$found = FALSE;
 		if($which != 'global') {
 			$found =  ! empty($this->extensions) && isset($this->extensions['_methods'][$method]);
@@ -1455,9 +1471,9 @@ class DataMapper implements IteratorAggregate {
 
 		// for performance, we clear out the select AND the order by statements,
 		// since they aren't necessary and might slow down the query.
-		$count_query->db->ar_select = NULL;
-		$count_query->db->ar_orderby = NULL;
-		$total = $count_query->db->ar_distinct ? $count_query->count_distinct() : $count_query->count();
+		$count_query->db->dm_set('ar_select', NULL);
+		$count_query->db->dm_set('ar_orderby', NULL);
+		$total = $count_query->db->dm_get('ar_distinct') ? $count_query->count_distinct() : $count_query->count();
 
 		// common vars
 		$last_row = $page_size * floor($total / $page_size);
@@ -1776,7 +1792,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $arguments
 	 * @return	bool
 	 */
-	private function _save($related_field, $arguments)
+	protected function _save($related_field, $arguments)
 	{
 		return $this->save($arguments[0], $related_field);
 	}
@@ -1866,7 +1882,7 @@ class DataMapper implements IteratorAggregate {
 	 * Gets a timestamp to use when saving.
 	 * @return mixed
 	 */
-	private function _get_generated_timestamp()
+	protected function _get_generated_timestamp()
 	{
 		// Get current timestamp
 		$timestamp = ($this->local_time) ? date($this->timestamp_format) : gmdate($this->timestamp_format);
@@ -2023,7 +2039,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $arguments
 	 * @return	bool
 	 */
-	private function _delete($related_field, $arguments)
+	protected function _delete($related_field, $arguments)
 	{
 		return $this->delete($arguments[0], $related_field);
 	}
@@ -2268,7 +2284,7 @@ class DataMapper implements IteratorAggregate {
 					{
 						if(!is_string($line))
 						{
-							if (FALSE === ($line = $this->lang->line($rule)))
+							if (FALSE === ($line = $this->lang->dm_line($rule)))
 							{
 								// Get corresponding error from language file
 								$line = 'Unable to access an error message corresponding to your rule name: '.$rule.'.';
@@ -2439,7 +2455,8 @@ class DataMapper implements IteratorAggregate {
 			$relationship_table = $this->_get_relationship_table($object, $related_field);
 
 			// To ensure result integrity, group all previous queries
-			if( ! empty($this->db->ar_where))
+			$where = $this->db->dm_get('ar_where');
+			if( ! empty($where))
 			{
 				// if the relationship table is different from our table, include our table in the count query
 				if ($relationship_table != $this->table)
@@ -2447,8 +2464,10 @@ class DataMapper implements IteratorAggregate {
 					$this->db->join($this->table, $this->table . '.id = ' . $relationship_table . '.' . $this_model.'_id', 'LEFT OUTER');
 				}
 
-				array_unshift($this->db->ar_where, '( ');
-				$this->db->ar_where[] = ' )';
+				$arwhere = $this->db->dm_get('ar_where');
+				array_unshift($arwhere, '( ');
+				$arwhere[] = ' )';
+				$this->db->dm_set('ar_where', $arwhere);
 			}
 
 			// We have to query special for in-table foreign keys that
@@ -2689,7 +2708,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $value Arguments to this method.
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _get_by($field, $value = array())
+	protected function _get_by($field, $value = array())
 	{
 		if (isset($value[0]))
 		{
@@ -2711,7 +2730,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $arguments Arguments to the where method
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _get_by_related($model, $arguments = array())
+	protected function _get_by_related($model, $arguments = array())
 	{
 		if ( ! empty($model))
 		{
@@ -2848,7 +2867,7 @@ class DataMapper implements IteratorAggregate {
 	}
 
 	// private method to convert function arguments into SQL
-	private function _process_function_arg($arg, $is_formula = FALSE)
+	protected function _process_function_arg($arg, $is_formula = FALSE)
 	{
 		$ret = '';
 		if(is_array($arg)) {
@@ -2937,7 +2956,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $args Arguments for func()
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _func($query, $args)
+	protected function _func($query, $args)
 	{
 		if(count($args) < 2)
 		{
@@ -2972,7 +2991,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $args Arguments for func()
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _field_func($query, $args)
+	protected function _field_func($query, $args)
 	{
 		if(count($args) < 2)
 		{
@@ -2993,7 +3012,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $args Arguments for subquery
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _subquery($query, $args)
+	protected function _subquery($query, $args)
 	{
 		if(count($args) < 1)
 		{
@@ -3101,12 +3120,19 @@ class DataMapper implements IteratorAggregate {
 	protected function _add_to_select_directly($value)
 	{
 		// copied from system/database/DB_activerecord.php
-		$this->db->ar_select[] = $value;
+		$var = $this->db->dm_get('ar_select');
+		$var[] = $value;
+		$this->db->dm_set('ar_select', $var);
 
-		if ($this->db->ar_caching === TRUE)
+		if ($this->db->dm_get('ar_caching') === TRUE)
 		{
-			$this->db->ar_cache_select[] = $value;
-			$this->db->ar_cache_exists[] = 'select';
+			$var = $this->db->dm_get('ar_cache_select');
+			$var[] = $value;
+			$this->db->dm_set('ar_cache_select', $var);
+
+			$var = $this->db->dm_get('ar_cache_exists');
+			$var[] = 'select';
+			$this->db->dm_set('ar_cache_exists', $var);
 		}
 	}
 
@@ -3122,7 +3148,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	mixed $extra If included, overrides the default assumption of FALSE for the third parameter to $query
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _process_special_query_clause($query, $field, $value, $extra = NULL) {
+	protected function _process_special_query_clause($query, $field, $value, $extra = NULL) {
 		if(strpos($query, 'where_in') !== FALSE) {
 			$query = str_replace('_in', '', $query);
 			$field .= ' IN ';
@@ -3318,11 +3344,20 @@ class DataMapper implements IteratorAggregate {
 
 		$this->_where_group_started = TRUE;
 
-		$prefix = (count($this->db->ar_where) == 0 AND count($this->db->ar_cache_where) == 0) ? '' : $type;
+		$prefix = (count($this->db->dm_get('ar_where')) == 0 AND count($this->db->dm_get('ar_cache_where')) == 0) ? '' : $type;
 
 		$value =  $prefix . $not . str_repeat(' ', $this->_group_count) . ' (';
-		$this->db->ar_where[] = $value;
-		if($this->db->ar_caching) $this->db->ar_cache_where[] = $value;
+
+		$var = $this->db->dm_get('ar_where');
+		$var[] = $value;
+		$this->db->dm_set('ar_where', $var);
+
+		if ($this->db->dm_get('ar_caching'))
+		{
+			$var = $this->db->dm_get('ar_cache_where');
+			$var[] = $value;
+			$this->db->dm_set('ar_cache_where', $var);
+		}
 
 		return $this;
 	}
@@ -3369,7 +3404,10 @@ class DataMapper implements IteratorAggregate {
 	public function group_end()
 	{
 		$value = str_repeat(' ', $this->_group_count) . ')';
-		$this->db->ar_where[] = $value;
+		$var = $this->db->dm_get('ar_where');
+		$var[] = $value;
+		$this->db->dm_set('ar_where', $var);
+
 		if($this->db->ar_caching) $this->db->ar_cache_where[] = $value;
 
 		$this->_where_group_started = FALSE;
@@ -3657,7 +3695,7 @@ class DataMapper implements IteratorAggregate {
 	{
 		$type = $this->_get_prepend_type($type);
 
-	 	$this->db->dm_call_method('_where', "`$key` ".($not?"NOT ":"")."BETWEEN ".$value1." AND ".$value2, NULL, $type, NULL);
+	 	$this->db->dm_call_method('_where', $this->add_table_name($key)." ".($not?"NOT ":"")."BETWEEN ".$this->db->escape($value1)." AND ".$this->db->escape($value2), NULL, $type, NULL);
 
 		// For method chaining
 		return $this;
@@ -3962,7 +4000,10 @@ class DataMapper implements IteratorAggregate {
 	 */
 	public function order_by($orderby, $direction = '')
 	{
-		$this->db->order_by($this->add_table_name($orderby), $direction);
+		// prefix the field with the table name if no prefix is given
+		strpos($orderby, '.') === FALSE AND $orderby = $this->add_table_name($orderby);
+
+		$this->db->order_by($orderby, $direction);
 
 		// For method chaining
 		return $this;
@@ -4242,7 +4283,7 @@ class DataMapper implements IteratorAggregate {
 				$rule = 'transaction';
 
 				// Get corresponding error from language file
-				if (FALSE === ($line = $this->lang->line($rule)))
+				if (FALSE === ($line = $this->lang->dm_line($rule)))
 				{
 					$line = 'Unable to access the ' . $rule .' error message.';
 				}
@@ -4555,7 +4596,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	mixed $extra Used to prevent escaping in special circumstances.
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _related($query, $arguments = array(), $extra = NULL)
+	protected function _related($query, $arguments = array(), $extra = NULL)
 	{
 		if ( ! empty($query) && ! empty($arguments))
 		{
@@ -4685,7 +4726,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	object $args Arguments for the query
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _related_subquery($query, $args)
+	protected function _related_subquery($query, $args)
 	{
 		$rel_object = $args[0];
 		$field = $value = NULL;
@@ -4892,7 +4933,7 @@ class DataMapper implements IteratorAggregate {
 		$object->select_func('COUNT', '*', 'count');
 		$this_rel = $related_properties['other_field'];
 		$tablename = $object->_add_related_table($this, $this_rel);
-		$object->where($tablename . '.id  = ', $this->db->dm_call_method('_escape_identifiers', '${parent}.id'), FALSE);
+		$object->where($tablename . '.`id` = ', $this->db->dm_call_method('_escape_identifiers', '${parent}.id'), FALSE);
 		$this->select_subquery($object, $alias);
 		return $this;
 	}
@@ -4909,7 +4950,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	int $id ID of related field or object
 	 * @return	bool Sucess or Failure
 	 */
-	private function _get_relation($related_field, $id)
+	protected function _get_relation($related_field, $id)
 	{
 		// No related items
 		if (empty($related_field) || empty($id))
@@ -5071,7 +5112,7 @@ class DataMapper implements IteratorAggregate {
 			{
 				$msg = 'dm_save_rel_failed';
 			}
-			$msg = $this->lang->line($msg);
+			$msg = $this->lang->dm_line($msg);
 			$this->error_message($related_field, sprintf($msg, $related_field));
 		}
 
@@ -5088,7 +5129,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param string $rf Related field to look at.
 	 * @param DataMapper $object Object to look at.
 	 */
-	private function _remove_other_one_to_one($rf, $object)
+	protected function _remove_other_one_to_one($rf, $object)
 	{
 		if( ! $object->exists())
 		{
@@ -5320,7 +5361,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $ids list of IDs we've already found.
 	 * @return	int Number of items found.
 	 */
-	private function _count_related_objects($compare, $object, $related_field, &$ids)
+	protected function _count_related_objects($compare, $object, $related_field, &$ids)
 	{
 		$count = 0;
 		if (is_array($object))
@@ -5470,7 +5511,7 @@ class DataMapper implements IteratorAggregate {
 	 * @param	array $arguments Arguments for query.
 	 * @return	DataMapper Returns self for method chaining.
 	 */
-	private function _join_field($query, $arguments)
+	protected function _join_field($query, $arguments)
 	{
 		if ( ! empty($query) && count($arguments) >= 3)
 		{
@@ -5957,7 +5998,7 @@ class DataMapper implements IteratorAggregate {
 			$r[] = $field;
 		}
 		$key = str_replace($s, $r, $key);
-		return $this->lang->line($key);
+		return $this->lang->dm_line($key);
 	}
 
 	// --------------------------------------------------------------------
@@ -6134,14 +6175,6 @@ class DataMapper implements IteratorAggregate {
 		{
 			// by default, automagically determine the join table name
 			$definition['join_table'] = '';
-		}
-		if( isset($definition['model_path']))
-		{
-			$definition['model_path'] = rtrim($definition['model_path'], '/') . '/';
-			if ( is_dir($definition['model_path'].'models') && ! in_array($definition['model_path'], self::$model_paths))
-			{
-				self::$model_paths[] = $definition['model_path'];
-			}
 		}
 		if(isset($definition['reciprocal']))
 		{
