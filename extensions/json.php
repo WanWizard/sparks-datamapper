@@ -28,44 +28,70 @@ class DMZ_Json {
 	 * @param	DataMapper $object The DataMapper Object to convert
 	 * @param	array $fields Array of fields to include.  If empty, includes all database columns.
 	 * @param	boolean $pretty_print Format the JSON code for legibility.
+	 * @param	boolean $include Recurse into the defined related objects. Supports deep relationships
+	 * @param	boolean	$no_encode Internal use only. if true, return the result without encoding
 	 * @return	string A JSON formatted String, or FALSE if an error occurs.
 	 */
-	public function to_json($object, $fields = '', $pretty_print = FALSE)
+	public function to_json($object, $fields = '', $pretty_print = FALSE, $include = array(), $no_encode = FALSE)
 	{
-		if(empty($fields))
-		{
-			$fields = $object->fields;
-		}
+		// make sure the fields array is defined
+		empty($fields) and $fields = $object->fields;
+		is_array($fields) or $fields = array($fields);
+
+		// same for the include array
+		empty($include) and $include = array();
+		is_array($include) or $include = array($include);
+
 		$result = array();
+
+		// process the fields
 		foreach($fields as $f)
 		{
 			// handle related fields
 			if(array_key_exists($f, $object->has_one) || array_key_exists($f, $object->has_many))
 			{
-				// each related item is stored as an array of ids
-				// Note: this method will NOT get() the related object.
-				$rels = array();
-				foreach($object->{$f} as $item)
-				{
-					$rels[] = $item->id;
-				}
-				$result[$f] = $rels;
+				// add it to the include array if not present yet
+				in_array($f, $include) or $include[] = $f;
 			}
 			else
 			{
-				// just the field.
+				// add the field to the result
 				$result[$f] = $object->{$f};
 			}
 		}
+
+		// process the relations
+		foreach($include as $f)
+		{
+			// is this a valid relation?
+			if(array_key_exists($f, $object->has_one) || array_key_exists($f, $object->has_many))
+			{
+				// create an include array for deeper relations
+				$deep_includes = array();
+				foreach($include as $i)
+				{
+					// add it if this is a deep relation of the current relation
+					($f !== $i and stripos($i, $f.'/') === 0) and $deep_includes[] = substr($i, strlen($f)+1);
+				}
+				// fetch the related objects, include all fields
+				$result[$f] = $object->{$f}->all_to_json('', FALSE, $deep_includes, TRUE);
+			}
+		}
+
+		if ($no_encode)
+		{
+			return $result;
+		}
+
 		$json = json_encode($result);
+
 		if($json === FALSE)
 		{
 			return FALSE;
 		}
-		if($pretty_print)
-		{
-			$json = $this->_json_format($json);
-		}
+
+		$pretty_print and $json = $this->_json_format($json);
+
 		return $json;
 	}
 
@@ -75,15 +101,17 @@ class DMZ_Json {
 	 * @param	DataMapper $object The DataMapper Object to convert
 	 * @param	array $fields Array of fields to include.  If empty, includes all database columns.
 	 * @param	boolean $pretty_print Format the JSON code for legibility.
+	 * @param	boolean $include Recurse into the defined related objects. Supports deep relationships
 	 * @return	string A JSON formatted String, or FALSE if an error occurs.
 	 */
-	public function all_to_json($object, $fields = '', $pretty_print = FALSE)
+	public function all_to_json($object, $fields = '', $pretty_print = FALSE, $include = array())
 	{
 		$result = array();
 		foreach($object as $o)
 		{
-			$result[] = $o->to_json($fields);
+			$result[] = $o->to_json($fields, FALSE, $include, TRUE);
 		}
+
 		$json = json_encode($result);
 		if($json === FALSE)
 		{

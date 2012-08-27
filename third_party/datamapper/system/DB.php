@@ -120,12 +120,23 @@ function &DB($params = '', $active_record_override = NULL)
 
 	if ( ! isset($active_record) OR $active_record == TRUE)
 	{
-		require_once(BASEPATH.'database/DB_active_rec.php');
-
-		if ( ! class_exists('CI_DB'))
+		if (file_exists(BASEPATH.'database/DB_active_rec.php'))
 		{
-			eval('class CI_DB extends CI_DB_active_record { }');
+			require_once(BASEPATH.'database/DB_active_rec.php');
+			if ( ! class_exists('CI_DB'))
+			{
+				eval('class CI_DB extends CI_DB_active_record { }');
+			}
 		}
+		else
+		{
+			require_once(BASEPATH.'database/DB_query_builder.php');
+			if ( ! class_exists('CI_DB'))
+			{
+				eval('class CI_DB extends CI_DB_query_builder { }');
+			}
+		}
+
 	}
 	else
 	{
@@ -141,7 +152,7 @@ function &DB($params = '', $active_record_override = NULL)
 	$driver = 'CI_DB_'.$params['dbdriver'].'_driver';
 
 	// load Datamappers DB interceptor class
-	require(APPPATH.'third_party/datamapper/system/DB_driver.php');
+	require(DATAMAPPERPATH.'third_party/datamapper/system/DB_driver.php');
 
 	$DB = new $driver($params);
 
